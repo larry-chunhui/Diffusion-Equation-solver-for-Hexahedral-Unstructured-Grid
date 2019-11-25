@@ -3,4 +3,4 @@ USD is a Finite Volume solver for the Diffusion equation for hexahedral unstruct
 
 ![](Images/heat_sink1.png)
 
-![](Images/heat_sink2.png)
+For more details please refer to the pdf file named USD.pdf

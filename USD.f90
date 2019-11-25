@@ -1,16 +1,8 @@
-module flow_vars
-     
-integer frame
-
-integer, allocatable ::  T_Bound_type(:)
-     
-real(8) miu, T_infinity, h_infinity
-
-real(8), allocatable, dimension(:,:) :: Grad_T_face, Grad_T
-
-real(8), allocatable, dimension(:) :: T, T_old, T_face, T_node, T_Bound, Flux_bound
-    
-end module flow_vars
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Module containing variables used to store grid data **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
 Module grid_vars
 
@@ -61,7 +53,7 @@ integer, allocatable :: cells(:,:), bnd(:,:), face_nb(:,:), node_nb(:,:), node_n
 ! n_orf number orifice groups
 ! i_f for face loop counter
 ! E_f and T_f are two vectors that are calculated such that there sum is the same as the face vector and are used to caculate the cross diffusion term
-!ncc is maximum number of cells connected to a single node
+! ncc is maximum number of cells connected to a single node
 
 real(8), dimension (3)  :: edge_1, edge_2, edge_3, edge_4, center_face
 real(8), dimension(0:3) :: cross_1, cross_2
@@ -74,19 +66,33 @@ integer, allocatable  :: duplicate(:,:) , orf_face_id(:)
 
 end module grid_vars
 
-module solution_vars
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Module containing variables used to store flow variables **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
-implicit none
-integer i, t_step
+module flow_vars
+     
+integer frame
+
+integer, allocatable ::  T_Bound_type(:)
+     
+real(8) miu, T_infinity, h_infinity, T_initial
+
+real(8), allocatable, dimension(:,:) :: Grad_T_face, Grad_T
+
+real(8), allocatable, dimension(:) :: T, T_old, T_face, T_node, T_Bound, Flux_bound
     
-real Voltest
+end module flow_vars
 
-real(8), allocatable :: PMA(:,:), PMB(:)
- 
- end module solution_vars
- 
- 
- Module Linear_Equation_Solvers
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Module containing subroutines for solving system of linear equations **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+Module Linear_Equation_Solvers
 
 contains
 
@@ -104,9 +110,8 @@ subroutine Simple_Equation_solver(MA, MB, Phi)
 
     P_R = 0.0
 
-    do i_iter = 1, 100
-            
-            
+    do i_iter = 1, 10000
+
     Phi_old =  Phi
         
     do i_c = 1, nc
@@ -117,26 +122,100 @@ subroutine Simple_Equation_solver(MA, MB, Phi)
 
         if (cell_fnb (i_f,i_c) .gt. nb) then
 
-        s = s - MA(i_f,i_c) / MA(0,i_c) * Phi(cell_nb(i_f,i_c))
+        s = s - MA(i_f,i_c)  * Phi(cell_nb(i_f,i_c))
            
         end if    
 
         end do
 
-        Phi(i_c) =  MB(i_c)/MA(0,i_c) + s
+        Phi(i_c) = ( MB(i_c) + s) /MA(0,i_c)
         
         end do
         
         P_R = abs( Phi - Phi_old )
 
-        if ( maxval(abs(P_R/Phi)) .lt. 1e-3) exit
- 
+        if ( maxval(abs(P_R/Phi)) .lt. 1e-6) exit
+
      end do  
+
+     print*, "Number of iterations in equations solver = ", i_iter
 
 end subroutine Simple_Equation_solver
 
 end module Linear_Equation_Solvers
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  **Module containing math functions that will be frequently used **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+
+Module math_functions
+
+contains
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Dot product of two vectors **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+
+
+function dot_product(vector_1, vector_2) result (dot)
+
+real(8) vector_1(1:3), vector_2(1:3), dot
+
+dot = vector_1(1)*vector_2(1) + vector_1(2)*vector_2(2) + vector_1(3)*vector_2(3)
+
+return
+
+end function dot_product
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Magnitude of a vector **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+function mag_vector(vector)  result (mag)
+
+real(8) vector(1:3), mag
+
+mag = sqrt( vector(1)**2 + vector(2)**2 + vector(3)**2)
+
+return
+
+end function mag_vector
+
+end module math_functions
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Module containing solution related variables **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+module solution_vars
+    implicit none
+    integer i, t_step
+    
+    real(8) Voltest, converg_limit
+
+    real(8), allocatable :: PMA(:,:), PMB(:), Res(:)
+
+    logical convergence
+ 
+end module solution_vars
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Program USD**
+!!
+!!  **Finite Volume solver for the Diffusion equation for hexahedral unstructured grids**
+!!
+!!  **Writen by: Yasser Shoukry**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    
 
     program USD
     
@@ -144,7 +223,7 @@ end module Linear_Equation_Solvers
     use flow_vars
     use coefficents_vars
     use solution_vars
-
+   
     implicit none
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -177,21 +256,27 @@ end module Linear_Equation_Solvers
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
 
-    do i = 1, 20
-
+    do i = 1, 200
+    
     call green_gauss(T, T_face, Grad_T, Grad_T_face, T_infinity)
     
     call calc_Diffusion
 
-    frame = frame + 1
-
     call write_vtk
+
+    call check_convergence
+
+    if (convergence) then
+
+      print*, "Solution has converged"
+
+      exit
+
+    end if
 
     end do
 
     end program USD
-    
-    
     
  subroutine abort_job
     
@@ -203,6 +288,50 @@ end module Linear_Equation_Solvers
 
 end subroutine abort_job
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Calculating the boundary face values, each based on it's boundary type **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+
+subroutine calc_bnd_face_values
+
+use grid_vars
+use solution_vars
+use flow_vars
+use math_functions
+
+implicit none
+
+do i_c = 1, nc
+
+ do i_f = 1, 6
+
+ if ( cell_fnb (i_f,i_c) .lt. nb+1) then
+
+  if ( T_Bound_type(bnd(5,cell_fnb (i_f,i_c))) .eq. 1) then ! Neumann Boundary Condition
+
+   T_face(cell_fnb (i_f,i_c)) = ( miu*E_F(i_f,i_c,0)/d_face(i_f,i_c)*T(i_c)-Flux_bound(bnd(5,cell_fnb (i_f,i_c))) )/ miu*E_F(i_f,i_c,0)/d_face(i_f,i_c)
+
+  else if (T_Bound_type(bnd(5,cell_fnb (i_f,i_c))) .eq. 2) then   ! Setting face value for Mixed Boundary conditions
+
+   T_face(cell_fnb (i_f,i_c)) = ( h_infinity*faces(i_f,i_c,0)*T_bound(bnd(5,cell_fnb (i_f,i_c))) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c)*T(i_c) - miu * ( dot_product( Grad_T_face(1:3,cell_fnb (i_f,i_c)),T_F (i_f,i_c,1:3))  ) ) / ( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) )
+
+  end if
+
+  end if
+
+ end do
+
+end do
+
+end subroutine
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Calculating the coefficents of the algebreic equation for the Diffusion terms **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
 
 subroutine calc_Diffusion
   
@@ -210,9 +339,9 @@ subroutine calc_Diffusion
     use flow_vars
     use solution_vars
     use Linear_Equation_Solvers
+    use math_functions
 
     implicit none
-
 
     PMA = 0
     PMB = 0
@@ -227,7 +356,7 @@ subroutine calc_Diffusion
 
             PMA(0,i_c) = PMA(0,i_c) + miu * E_F (i_f,i_c,0) /  d_nb(i_f,i_c)
 
-            PMB (i_c) = PMB (i_c) + miu * ( Grad_T_face(1,cell_fnb (i_f,i_c))*T_F (i_f,i_c,1) + Grad_T_face(2,cell_fnb (i_f,i_c))*T_F (i_f,i_c,2) + Grad_T_face(3,cell_fnb (i_f,i_c))*T_F (i_f,i_c,3) )
+            PMB (i_c) = PMB (i_c) + miu * dot_product( Grad_T_face(1:3,cell_fnb (i_f,i_c)),T_F (i_f,i_c,1:3) )
 
             else if ( cell_fnb (i_f,i_c) .lt. nb+1 .and. T_Bound_type(bnd(5,cell_fnb (i_f,i_c))) .eq. 0) then ! Dirichlet Boundary Condition
 
@@ -243,9 +372,9 @@ subroutine calc_Diffusion
 
             PMA(0,i_c) = PMA(0,i_c) + (h_infinity*faces(i_f,i_c,0)*miu*E_F(i_f,i_c,0)/d_face(i_f,i_c))/( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) )
 
-            PMB (i_c)  = PMB (i_c) -  (h_infinity*faces(i_f,i_c,0)*miu*E_F(i_f,i_c,0)/d_face(i_f,i_c))/( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) ) * T_infinity
+            PMB (i_c)  = PMB (i_c) +  (h_infinity*faces(i_f,i_c,0)*miu*E_F(i_f,i_c,0)/d_face(i_f,i_c))/( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) ) * T_infinity
 
-            PMB (i_c)  = PMB (i_c) -  ( h_infinity*faces(i_f,i_c,0)*miu * ( Grad_T_face(1,cell_fnb (i_f,i_c))*T_F (i_f,i_c,1) + Grad_T_face(2,cell_fnb (i_f,i_c))*T_F (i_f,i_c,2) + Grad_T_face(3,cell_fnb (i_f,i_c))*T_F (i_f,i_c,3) ) ) / ( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) )
+            PMB (i_c)  = PMB (i_c) +  ( h_infinity*faces(i_f,i_c,0)*miu * ( Grad_T_face(1,cell_fnb (i_f,i_c))*T_F (i_f,i_c,1) + Grad_T_face(2,cell_fnb (i_f,i_c))*T_F (i_f,i_c,2) + Grad_T_face(3,cell_fnb (i_f,i_c))*T_F (i_f,i_c,3) ) ) / ( h_infinity*faces(i_f,i_c,0) + miu*E_F(i_f,i_c,0)/d_face(i_f,i_c) )
 
             end if
 
@@ -253,15 +382,16 @@ subroutine calc_Diffusion
 
     end do
 
-call Simple_Equation_solver(PMA, PMB, T)
+call Simple_Equation_solver(PMA, PMB, T)    !! Solving the algebric equations
 
-call calc_node_values
+call calc_bnd_face_values                   !! Using new calculated cell values to update boundary face values, each based on it's boundary type
+
+call calc_node_values                       !! Updating the node values based on the new calculated cell values
+
+call calc_normalized_residuals(PMA, PMB, T) !! Calculating the residuals and checking for convergence
  
 end subroutine calc_Diffusion
 
-
-subroutine calc_face_area
-    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
 !!
@@ -273,20 +403,17 @@ subroutine calc_face_area
 !!
 !!   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
+
+subroutine calc_face_area
+ 
     use grid_vars
  
     implicit none
-    
-         
-    
+ 
     integer xyz
     
     real(8) theta
-    
-    
-    
-     
+ 
     
    edge_1(1:3) = nodes(1:3,cells(config(2,i_config),i_c)) - nodes(1:3,cells(config(1,i_config),i_c))
 
@@ -296,10 +423,6 @@ subroutine calc_face_area
                                                 
    edge_4(1:3) = nodes(1:3,cells(config(2,i_config),i_c)) - nodes(1:3,cells(config(3,i_config),i_c))
    
-
-    
-
-    
     
     cross_1(1) = edge_1(2) * edge_2(3) -  edge_1(3) * edge_2(2)
     
@@ -308,7 +431,6 @@ subroutine calc_face_area
     cross_1(3) = edge_1(1) * edge_2(2) -  edge_1(2) * edge_2(1)
     
     cross_1(0) = sqrt(cross_1(1)**2 + cross_1(2)**2 + cross_1(3)**2)
-
     
     
     cross_2(1) = edge_3(2) * edge_4(3) -  edge_3(3) * edge_4(2)
@@ -319,12 +441,10 @@ subroutine calc_face_area
     
     cross_2(0) = sqrt(cross_2(1)**2 + cross_2(2)**2 + cross_2(3)**2)
 
-
    
     faces(i_config,i_c,0:3) = 0.5 * cross_1(0:3) + 0.5 * cross_2(0:3)
  
     face_norm(i_config,i_c,1:3) = cross_1(1:3) / cross_1(0)
-
 
     
     do xyz = 1, 3
@@ -336,11 +456,14 @@ subroutine calc_face_area
     face_center_list(cell_fnb (i_config,i_c), 1:3) = face_center(i_config, i_c, 1:3)
     
     return
-    
-    
+  
 end subroutine calc_face_area
 
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Subroutine for calculating nodal values from cell center and boundary face values **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
 subroutine calc_node_values
     
@@ -363,23 +486,14 @@ do i_v = 1, nv
             if ( node_nb_bnd(i_nb,i_v) .eq. 0) then
 
             exit
-
             else 
 
-  
             T_node(i_v) = T_node(i_v) + node_bnd_wght(i_nb,i_v) * T_face(node_nb_bnd(i_nb,i_v)) 
 
             end if
-
-
         end do
-
-                   
+           
     end if
-
-     
-
-    
     
        if (node_bnd(i_v) .eq. -1000) then
         
@@ -392,14 +506,12 @@ do i_v = 1, nv
                      
                    end if
                 end do
-         
+        
        end if
-
+  
 end do
-
     
 end subroutine calc_node_values
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -435,8 +547,6 @@ subroutine green_gauss (Phi, Phi_face, Grad_Phi, Grad_Phi_face, Phi_infinity)
 
     Phi_face_dash_2(1:nb) = Phi_face(1:nb)
 
-!! Option 2
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -454,21 +564,6 @@ subroutine green_gauss (Phi, Phi_face, Grad_Phi, Grad_Phi_face, Phi_infinity)
 
     end do
 
-
-
-    do i_f = 1, nb
-
-        if (T_Bound_type(bnd(5,i_f)) .eq. 1) then        ! Setting face value for Neumann Boundary conditions
-
-            Phi_face_dash_2(i_f) = Phi(face_cnb(1,i_f))
-
-        else if (T_Bound_type(bnd(5,i_f)) .eq. 2) then   ! Setting face value for Mixed Boundary conditions
-
-            Phi_face_dash_2(i_f) = (Phi(face_cnb(1,i_f)) + Phi_infinity)/2
-
-        end if
-
-    end do  
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -511,20 +606,6 @@ subroutine green_gauss (Phi, Phi_face, Grad_Phi, Grad_Phi_face, Phi_infinity)
      end do    
 
 
-    do i_f = 1, nb
-
-        if (T_Bound_type(bnd(5,i_f)) .eq. 1) then        ! Setting face values for Neumann Boundary conditions
-
-            Phi_face(i_f) = Phi(face_cnb(1,i_f))
-
-        else if (T_Bound_type(bnd(5,i_f)) .eq. 2) then   ! Setting face for Mixed Boundary conditions
-
-            Phi_face(i_f) = (Phi(face_cnb(1,i_f)) + Phi_infinity)/2
-
-        end if
-
-    end do  
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
 !!  ** Step 4 Update Grad_Phi using Phi at faces this time **
@@ -565,19 +646,19 @@ subroutine green_gauss (Phi, Phi_face, Grad_Phi, Grad_Phi_face, Phi_infinity)
 
         Term_2(1:3) =  ( (Phi(cell_nb(i_f,i_c)) - Phi(i_c) ) / d_nb(i_f,i_c)  +  Term_1(1)*e_centeroids(i_f,i_c,1) + Term_1(2)*e_centeroids(i_f,i_c,2) + Term_1(3)*e_centeroids(i_f,i_c,3) ) * e_centeroids(i_f,i_c,1:3)
 
-        Grad_Phi_face(1:3,i_f) = Term_1 + Term_2
+        Grad_Phi_face(1:3,cell_fnb (i_f,i_c)) = Term_1 + Term_2
 
         else if(cell_fnb (i_f,i_c) .lt. nb+1 .and. T_Bound_type(bnd(5,i_f)) .eq. 0) then ! Setting face gradient values for Dirichlet Boundary conditions
 
-        Grad_Phi_face(1:3,i_f) = Grad_Phi(1:3,i_c)/2
+        Grad_Phi_face(1:3,cell_fnb (i_f,i_c)) = Grad_Phi(1:3,i_c)/2
 
         else if(cell_fnb (i_f,i_c) .lt. nb+1 .and. T_Bound_type(bnd(5,i_f)) .eq. 1) then ! Setting face gradient values for Neuman Boundary conditions
 
-        Grad_Phi_face(1:3,i_f) = Grad_Phi(1:3,i_c)/2
+        Grad_Phi_face(1:3,cell_fnb (i_f,i_c)) = Grad_Phi(1:3,i_c)/2
 
         else if(cell_fnb (i_f,i_c) .lt. nb+1 .and. T_Bound_type(bnd(5,i_f)) .eq. 2) then ! Setting face gradient values for Mixed Boundary conditions
 
-        Grad_Phi_face(1:3,i_f) = Grad_Phi(1:3,i_c)/2
+        Grad_Phi_face(1:3,cell_fnb (i_f,i_c)) = Grad_Phi(1:3,i_c)/2
 
         end if
 
@@ -588,7 +669,99 @@ subroutine green_gauss (Phi, Phi_face, Grad_Phi, Grad_Phi_face, Phi_infinity)
 
 end subroutine green_gauss
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  Subroutines for calculating the residuals using either the:
+!!  -  Max residual method 
+!!  -  Normalized residual method 
+!!
+!!  Subroutine for checking convergence
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+subroutine calc_max_residuals(MA, MB, Phi)
+
+use grid_vars
+use solution_vars
+use flow_vars
+
+implicit none
+
+real(8) MA(0:6,nc), MB(nc), Phi(nc)
+
+Res = 0
+
+do i_c = 1, nc
+
+  do i_f = 1, 6
+
+   if (cell_fnb (i_f,i_c) .gt. nb) then
+
+    Res(i_c) = Res(i_c) + MA(i_f,i_c) * Phi(cell_nb(i_f,i_c))
+
+   end if
+
+  end do
+
+ Res(i_c) = abs(MB(i_c) - MA(0,i_c)* Phi(i_c) - Res(i_c))
+
+end do
+
+print*, "Max residual at iteration no.", i, " = ", maxval(Res)
+
+end subroutine calc_max_residuals
+
+
+
+subroutine calc_normalized_residuals(MA, MB, Phi)
+
+use grid_vars
+use solution_vars
+use flow_vars
+
+implicit none
+
+real(8) MA(0:6,nc), MB(nc), Phi(nc), max_phi_ac
+
+Res        = 0
+
+max_phi_ac = maxval(abs(Phi*MA(0,:)))
+
+do i_c = 1, nc
+
+  do i_f = 1, 6
+
+   if (cell_fnb (i_f,i_c) .gt. nb) then
+
+    Res(i_c) = Res(i_c) + MA(i_f,i_c) * Phi(cell_nb(i_f,i_c))
+
+   end if
+
+  end do
+
+ Res(i_c) = abs(MB(i_c) - MA(0,i_c)* Phi(i_c) - Res(i_c)) / max_phi_ac
+
+end do
+
+print*, "Max residual at iteration no.", i, " = ", maxval(Res)
+
+end subroutine calc_normalized_residuals
+
+
+
+subroutine check_convergence
+
+use solution_vars
+
+implicit none
+
+    if (maxval(Res) .lt. converg_limit) then
+
+     convergence = 1
+
+    end if
+
+end subroutine check_convergence
 
 subroutine Calc_USG_correction_Vectors
 
@@ -649,11 +822,10 @@ subroutine Calc_USG_correction_Vectors
 
 end subroutine Calc_USG_correction_Vectors
 
-
-
 subroutine process_gmte
     
  use grid_vars   
+ use math_functions
     
  implicit none
  
@@ -1009,7 +1181,7 @@ end do
            
             if ( node_nb(i_v_nb,i_v) .gt. 0) then
             
-                node_nb_wgh(i_v_nb,i_v) =  1/sqrt((cell_center(1,node_nb(i_v_nb,i_v)) - nodes(1,i_v))**2 + (cell_center(2,node_nb(i_v_nb,i_v)) - nodes(2,i_v))**2 + (cell_center(3,node_nb(i_v_nb,i_v)) - nodes(3,i_v))**2)
+                node_nb_wgh(i_v_nb,i_v) =  1/ mag_vector(cell_center(1:3,node_nb(i_v_nb,i_v)) - nodes(1:3,i_v))
                 
                 total_node = total_node + node_nb_wgh(i_v_nb,i_v)
                 
@@ -1311,7 +1483,7 @@ do i_c = 1, nc
 
      r_face(i_nb,i_c,1:3) = face_center(i_nb,i_c,1:3) - cell_center(1:3,i_c)                            !! The vector connecting cell centroids
         
-     d_face(i_nb,i_c)     = sqrt(r_face(i_nb,i_c,1)**2+r_face(i_nb,i_c,2)**2+r_face(i_nb,i_c,3)**2)     !! The magnitude of the vector connecting cell centroids
+     d_face(i_nb,i_c)     = mag_vector(r_face(i_nb,i_c,1:3))                                            !! The magnitude of the vector connecting cell centroids
 
      e_face(i_nb,i_c,1:3) =  r_face(i_nb,i_c,1:3)/d_face(i_nb,i_c)                                      !! The unit vector of the vector connecting cell centroids
     
@@ -1319,19 +1491,19 @@ do i_c = 1, nc
 
      r_nb(i_nb,i_c,1:3)           = cell_center(1:3,cell_nb(i_nb,i_c)) - cell_center(1:3,i_c)           !! The Vector from cell center to cell neigbour center
 
-     d_nb(i_nb,i_c)               = sqrt(r_nb(i_nb,i_c,1)**2+r_nb(i_nb,i_c,2)**2+r_nb(i_nb,i_c,3)**2)   !! The Magnitude of the previous vector
+     d_nb(i_nb,i_c)               = mag_vector(r_nb(i_nb,i_c,1:3))                                      !! The Magnitude of the previous vector
 
      e_centeroids(i_nb,i_c,1:3)   = r_nb(i_nb,i_c,1:3) / d_nb(i_nb,i_c)                                 !! Unit vector of the previous vector
 
-     f_dash(i_nb,i_c,1:3)         = ((face_center(i_nb,i_c,1) * faces(i_nb,i_c,1) + face_center(i_nb,i_c,2) * faces(i_nb,i_c,2) + face_center(i_nb,i_c,3) * faces(i_nb,i_c,3))-(cell_center(1,i_c) * faces(i_nb,i_c,1) + cell_center(2,i_c) * faces(i_nb,i_c,2) + cell_center(3,i_c) * faces(i_nb,i_c,3)) )/ (e_centeroids(i_nb,i_c,1)*faces(i_nb,i_c,1) + e_centeroids(i_nb,i_c,2)*faces(i_nb,i_c,2) + e_centeroids(i_nb,i_c,3)*faces(i_nb,i_c,3)) * e_centeroids(i_nb,i_c,1:3) + cell_center(1:3,i_c) !! Point of intersection between the face and the line connecting cell centoids
+     f_dash(i_nb,i_c,1:3)         = ( dot_product(face_center(i_nb,i_c,1:3),faces(i_nb,i_c,1:3)) - dot_product(cell_center(1:3,i_c),faces(i_nb,i_c,1:3)) ) / dot_product(e_centeroids(i_nb,i_c,1:3),faces(i_nb,i_c,1:3)) * e_centeroids(i_nb,i_c,1:3) + cell_center(1:3,i_c) !! Point of intersection between the face and the line connecting cell centoids
 
      r_F_min_f_dash(i_nb,i_c,1:3) = cell_center(1:3,cell_nb(i_nb,i_c)) - f_dash(i_nb,i_c,1:3)           !! Vector created by subtracting the r_nb - f_dash
 
-     d_f_dash(i_nb,i_c)   = sqrt(r_F_min_f_dash(i_nb,i_c,1)**2+r_F_min_f_dash(i_nb,i_c,2)**2+r_F_min_f_dash(i_nb,i_c,3)**2) !! Magnitude of the previous vector
+     d_f_dash(i_nb,i_c)           =  mag_vector(r_F_min_f_dash(i_nb,i_c,1:3))                           !! Magnitude of the previous vector
 
-     g_c(i_nb,i_c)        = ( d_face(i_nb,i_c) / d_nb(i_nb,i_c) )                                       !! Geometeric factor for the two cell centers based on face center
+     g_c(i_nb,i_c)                = ( d_face(i_nb,i_c) / d_nb(i_nb,i_c) )                               !! Geometeric factor for the two cell centers based on face center
      
-     g_c_dash(i_nb,i_c)   = ( d_f_dash(i_nb,i_c) / d_nb(i_nb,i_c) )                                     !! Geometeric factor for the two cell centers based on f_dash
+     g_c_dash(i_nb,i_c)           = ( d_f_dash(i_nb,i_c) / d_nb(i_nb,i_c) )                             !! Geometeric factor for the two cell centers based on f_dash
 
     end if
    end do
@@ -1353,7 +1525,7 @@ do i_c = 1, nc
 
                 if ( node_nb_bnd(i_v_nb,i_v) .gt. 0) then
 
-                node_bnd_wght(i_v_nb,i_v) =  1/sqrt((face_center_list(node_nb_bnd(i_v_nb,i_v),1) - nodes(1,i_v))**2 + (face_center_list(node_nb_bnd(i_v_nb,i_v),3) - nodes(2,i_v))**2 + (face_center_list(node_nb_bnd(i_v_nb,i_v),3) - nodes(3,i_v))**2)
+                node_bnd_wght(i_v_nb,i_v) =  1/mag_vector(face_center_list(node_nb_bnd(i_v_nb,i_v),1:3) - nodes(1:3,i_v))
 
                 total_node = total_node + node_bnd_wght(i_v_nb,i_v)
 
@@ -1391,8 +1563,6 @@ print*, "Number of Orifice groups = ", n_orf
     
 end subroutine process_gmte
 
-
-
 subroutine initialize_flow_variables
     
     use grid_vars
@@ -1410,11 +1580,13 @@ subroutine initialize_flow_variables
     allocate (T_Bound_type(n_walls))
     allocate (T(nc), T_old(nc), T_face(n_faces), T_node(nv), T_Bound(n_walls), Grad_T(1:3,nc), Grad_T_face(1:3,n_faces), Flux_bound(n_walls))
  
-    T      = 20
-    T_node = 0
-    T_face = 20
-    Grad_T = 0
-    frame  = 1000
+    T_initial = 293
+
+    T         = T_initial
+    T_node    = T_initial
+    T_face    = T_initial
+    Grad_T    = 0
+    frame     = 1000
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1423,24 +1595,23 @@ subroutine initialize_flow_variables
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    T_Bound(1) = 20
-    T_Bound(2) = 100
+    T_Bound(1) = 293
+    T_Bound(2) = 373
 !   T_Bound(3) = 10
 
     do i_f = 1, nb
 
-        T_face(i_f) = T_Bound(bnd(5,i_f))
+     T_face(i_f) = T_Bound(bnd(5,i_f))
 
     end do
-
 
     T_Bound_type(1) = 2
     T_Bound_type(2) = 0
 !   T_Bound_type(3) = 1
 
     Flux_bound = 0
-    T_infinity = 20
-    h_infinity = 2
+    T_infinity = 293
+    h_infinity = 20
        
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -1449,19 +1620,27 @@ subroutine initialize_flow_variables
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
  call calc_node_values
-
-
+ 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
 !!  ** Allocating Algebric equation cooefficents Matrices **
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
-     allocate(  PMA(0:6,nc), PMB(nc))
+  allocate(  PMA(0:6,nc), PMB(nc), Res(nc))
     
-       PMA = 0
+  PMA = 0
+  PMB = 0
 
-       PMB = 0
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Inializing Residual and Convergence variables **
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+  Res           = 0
+  convergence   = 0
+  converg_limit = 4e-7
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -1568,19 +1747,23 @@ subroutine read_gmte
     end subroutine read_gmte
     
     
-    subroutine write_vtk
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Writing a .vtk file which can be read using ParaView**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+subroutine write_vtk
 
     use grid_vars
     use flow_vars
-    
-      
+ 
     implicit none
     
     character (len = 1024) ::  plot
     
     write(plot,"(A7,I4,A4)")  "ABYtest", frame, ".vtk"
-    
-  
+
    open(unit=31, file=plot)
    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1588,90 +1771,62 @@ subroutine read_gmte
 !!  ** Writing file header and geometry**
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-   
-   
+
    write (31, 501)
    write (31, 502) 
    write (31, 503) 
    write (31, 504) 
    write (31, 505) nv
-   
-   
-    do i_v= 1, nv
-    write (31,601) nodes(1,i_v), nodes(2,i_v), nodes(3,i_v)
-    end do
-    
       
-    write (31,506) nc,  nc*9
+   do i_v= 1, nv
+    write (31,601) nodes(1,i_v), nodes(2,i_v), nodes(3,i_v)
+   end do
     
-    
-    
-    do i_c = 1, nc
+   write (31,506) nc,  nc*9
+   
+   do i_c = 1, nc
     write (31,602) cells(1,i_c)-1, cells(2,i_c)-1, cells(3,i_c)-1, cells(4,i_c)-1, cells(5,i_c)-1, cells(6,i_c)-1, cells(7,i_c)-1, cells(8,i_c)-1
-    end do
+   end do
+   
+   write (31, 507)  nc
     
-    
-    write (31, 507)  nc
-    
-    do i_c = 1, nc
+   do i_c = 1, nc
     write (31,603) 12
-    end do
-    
-    
-    
+   end do
 
- 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Header for node data**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+    
+ write (31, 508)  nv
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
 !!  ** Writing Values of Temperature**
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-   
-    write (31, 508)  nv
-    write (31, 530)
-    write (31, 510)
-    
-      do i_v = 1, nv
-             
-          write (31,604) T_node(i_v)
 
-      end do 
-      
-      
+ call write_node_data (T_node, "Temperature_k")
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Header for cell data**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+
+ write (31, 515)  nc
+         
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
 !!  ** Writing Values of Temperature Cell Gradients**
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
-    write (31, 515)  nc
-    write (31, 531)
-    write (31, 510)
-
-     do i_c = 1, nc
-             
-          write (31,604) Grad_T(1,i_c)
-
-      end do 
-
-
-    write (31, 532)
-    write (31, 510)
-
-     do i_c = 1, nc
-             
-          write (31,604) Grad_T(2,i_c)
-
-      end do 
-    
-     write (31, 533)
-     write (31, 510)
-
-     do i_c = 1, nc
-             
-          write (31,604) Grad_T(3,i_c)
-
-      end do 
+call write_cell_data (Grad_T(1,:), "Temperature_Gradient_x")
+call write_cell_data (Grad_T(2,:), "Temperature_Gradient_y")
+call write_cell_data (Grad_T(3,:), "Temperature_Gradient_z")
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -1679,16 +1834,9 @@ subroutine read_gmte
 !! 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
-     write (31, 530)
-     write (31, 510)
+call write_cell_data (T, "Temperature_cell_value_K")
 
-     do i_c = 1, nc
-             
-          write (31,604) T(i_c)
-
-      end do 
-   
-
+frame = frame + 1
    
 501 format("# vtk DataFile Version 2.0" )   
 502 format("Unstructured Grid Example")   
@@ -1697,30 +1845,11 @@ subroutine read_gmte
 505 format("POINTS ", i10, " float")   
 506 format("CELLS ", i10, " ", i10)  
 507 format("CELL_TYPES ", i10)
+
 508 format("POINT_DATA ", i7)
-509 format("SCALARS Pressure_(Pa) float 1")
-510 format("LOOKUP_TABLE default")
-511 format("SCALARS u_(m/sec) float 1")
-512 format("SCALARS v_(m/sec) float 1")
-513 format("SCALARS w_(m/sec) float 1")    
-514 format("VECTORS Velocity_(m/sec)  float")
+
 515 format("CELL_DATA ", i7)
-516 format("SCALARS Pressure_(Cell) float 1")
-517 format("SCALARS u_(Cell) float 1")
-518 format("SCALARS v_(Cell) float 1")
-519 format("SCALARS w_(Cell) float 1")    
-520 format("VECTORS Velocity_(Cell)  float")  
-    
-521 format("SCALARS v_(star) float 1")
-522 format("SCALARS v_(corr) float 1")
-523 format("SCALARS p_(corr) float 1")
-    
-530 format("SCALARS Temperature_(K) float 1")
-531 format("SCALARS Temperature_Gradient_x float 1")
-532 format("SCALARS Temperature_Gradient_y float 1")
-533 format("SCALARS Temperature_Gradient_z float 1")
-    
-    
+
 601 format(f10.5, " ",f10.5, " ",f10.5)
 602 format("8 ", i7, " ",i7, " ",i7, " ",i7," ",i7," ",i7," ",i7," ",i7)
 603 format(i2)
@@ -1728,5 +1857,66 @@ subroutine read_gmte
  
  end subroutine write_vtk
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Generic subroutine for writing node data**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 
+ subroutine write_node_data (Phi_node, Var_name) 
+
+  use grid_vars
+  use flow_vars
+
+  implicit none
+
+  real(8) Phi_node(nv)
+
+  character(len = *), intent(in) :: Var_name
+
+  write (31,*)"SCALARS ", Var_name , " float 1" 
+  write (31,101) 
+    
+  do i_v = 1, nv
+             
+   write (31,201) Phi_node(i_v)
+
+  end do 
+
+101 format("LOOKUP_TABLE default")
+201 format(f20.10)
+
+ end subroutine write_node_data
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!
+!!  ** Generic subroutine for writing cell data**
+!! 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ subroutine write_cell_data (Phi, Var_name) 
+
+  use grid_vars
+  use flow_vars
+
+  implicit none
+
+  real(8) Phi(nc)
+
+  character(len = *), intent(in) :: Var_name
+
+  write (31,*)"SCALARS ", Var_name , " float 1" 
+  write (31,101) 
+    
+  do i_c = 1, nc
+             
+   write (31,201) Phi(i_c)
+
+  end do 
+
+101 format("LOOKUP_TABLE default")
+201 format(f20.10)
+
+ end subroutine write_cell_data
 
